@@ -16,7 +16,7 @@ class Adbstatus < Formula
   uses_from_macos "python", since: :catalina
 
   def install
-    # Get Python executable
+    # Get the Python path - we'll find pip relative to this
     python = Formula["python@3"].opt_bin/"python3"
     
     # Check Python version
@@ -29,25 +29,37 @@ class Adbstatus < Formula
       odie "Python 3.8 or newer is required but you have #{python_version}"
     end
     
-    # Install using pip install git+URL approach instead of local directory
-    # This is using the approach we know works from your earlier testing
-    venv = virtualenv_create(libexec, python)
-    system venv.pip_install("git+https://github.com/kilna/adbstatus.git@main")
+    # Create a virtual environment
+    venv_dir = libexec
+    system python, "-m", "venv", venv_dir
     
-    # Create bin stubs with Homebrew that use the venv Python
-    bin.install_symlink Dir["#{libexec}/bin/*"]
+    # Get paths to binaries in the venv
+    venv_python = "#{venv_dir}/bin/python"
+    venv_pip = "#{venv_dir}/bin/pip"
+    
+    # Make sure pip is updated in the venv
+    system venv_python, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"
+    
+    # Install directly from the Git URL using the venv python
+    # This avoids using the system pip which might be missing
+    system venv_python, "-m", "pip", "install", "git+https://github.com/kilna/adbstatus.git@main"
+    
+    # Create bin stubs with Homebrew
+    bin.install_symlink Dir["#{venv_dir}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
-    # Install config files from the repository
-    if File.exist?("etc/server.yml")
-      (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
-    end
-    
-    if File.exist?("etc/monitor.yml")
-      (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+    # Copy config files from the repository
+    if Dir.exist?("etc")
+      if File.exist?("etc/server.yml")
+        (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
+      end
+      
+      if File.exist?("etc/monitor.yml")
+        (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+      end
     end
     
     # Generate self-signed certificates if they don't exist
