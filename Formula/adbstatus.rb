@@ -10,8 +10,8 @@ class Adbstatus < Formula
   depends_on "sleepwatcher"
   
   resource "psutil" do
-    url "https://files.pythonhosted.org/packages/90/c7/6dc0a455d111f68ee43f27793971cf03fe29b6ef972042549db29eec39a2/psutil-5.9.8-cp36-abi3-macosx_10_9_x86_64.whl"
-    sha256 "49826e3c7ee608eb11bf19ac4a D.d35d66b35 D"
+    url "https://files.pythonhosted.org/packages/b2/38/c4d87f8a0ad6067a65ba112f273560ae721f068631d6ca546b059fc14cf4/psutil-5.9.8.tar.gz"
+    sha256 "6be126e3225486dff286a8fb9a06246a5253f4c7c53b475ea5f5ac934e64194c"
   end
 
   resource "PyYAML" do
@@ -20,8 +20,8 @@ class Adbstatus < Formula
   end
 
   resource "tomli" do
-    url "https://files.pythonhosted.org/packages/97/75/10a9ebee3fd790d20926a90a2547f0bf78f371b2f13aa822c759680ca7b9/tomli-2.0.1-py3-none-any.whl"
-    sha256 "939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"
+    url "https://files.pythonhosted.org/packages/c0/3f/d7af728f075fb08564c5949a9c95e44352e23dee646869fa104a3b2060a3/tomli-2.0.1.tar.gz"
+    sha256 "de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"
   end
 
   def install
