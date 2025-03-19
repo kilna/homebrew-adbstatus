@@ -10,20 +10,33 @@ class Adbstatus < Formula
   def install
     # Get the Python version dynamically
     python = Formula["python@3"].opt_bin/"python3"
+    pip = Formula["python@3"].opt_bin/"pip3"
+    
+    # Check Python version
     python_version = Utils.safe_popen_read(python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     python_version.chomp!
     
-    # Configure Python package path based on detected version
-    ENV["PYTHONPATH"] = libexec/"lib/python#{python_version}/site-packages"
+    if Gem::Version.new(python_version) < Gem::Version.new("3.8")
+      odie "Python 3.8 or newer is required but you have #{python_version}"
+    end
     
-    # Install Python package with pip
-    system python, "-m", "pip", "install", *std_pip_args, "--target=#{ENV["PYTHONPATH"]}", "."
+    # Set up the target directory for installation
+    site_packages = libexec/"lib/python#{python_version}/site-packages"
+    ENV.prepend_create_path "PYTHONPATH", site_packages
     
-    # Create bin stubs that use the correct Python interpreter
-    bin.install Dir["#{libexec}/bin/*"]
-    bin.env_script_all_files(libexec/"bin", 
-                            PATH: "#{Formula["python@3"].opt_bin}:#{ENV["PATH"]}",
-                            PYTHONPATH: ENV["PYTHONPATH"])
+    # Install the package
+    system pip, "install", "--prefix=#{libexec}", "."
+    
+    # Create bin stubs
+    bin_paths = Dir["#{libexec}/bin/*"]
+    bin.install_symlink(bin_paths)
+    
+    # Create wrapped bin scripts that set correct PYTHONPATH
+    bin_paths.each do |bin_path|
+      bin_name = File.basename(bin_path)
+      (bin/bin_name).write_env_script bin_path,
+        PYTHONPATH: "#{site_packages}:#{ENV["PYTHONPATH"]}"
+    end
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
@@ -66,10 +79,8 @@ class Adbstatus < Formula
   end
 
   test do
-    # Test that the binaries are installed and runnable
-    system "#{bin}/adbstatus", "-v"
-    system "#{bin}/adbstatus-server", "-v"
-    system "#{bin}/adbstatus-monitor", "-v"
+    # Check version output contains a version number
+    assert_match(/\d+\.\d+\.\d+/, shell_output("#{bin}/adbstatus -v"))
   end
 end
 
