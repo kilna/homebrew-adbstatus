@@ -27,97 +27,11 @@ class Adbstatus < Formula
   end
 
   def install
-    # Find Python 3.8+ in PATH
-    pythons = ENV["PATH"].split(":").map { |p| Dir["#{p}/python3*"] }.flatten.select do |py|
-      next unless File.executable?(py)
-      version = `#{py} -c "import sys; print('{}.{}'.format(*sys.version_info[:2]))"`.strip
-      next unless version.match?(/^\d+\.\d+$/)
-      Gem::Version.new(version) >= Gem::Version.new("3.8")
-    end
-    
-    if pythons.empty?
-      pythons = Dir["/usr/bin/python3*", "/usr/local/bin/python3*"].select do |py|
-        next unless File.executable?(py)
-        version = `#{py} -c "import sys; print('{}.{}'.format(*sys.version_info[:2]))"`.strip
-        next unless version.match?(/^\d+\.\d+$/)
-        Gem::Version.new(version) >= Gem::Version.new("3.8")
-      end
-    end
-    
-    if pythons.empty?
-      odie "No Python 3.8+ found in PATH or standard locations. Please install Python 3.8+."
-    end
-    
-    python = pythons.first
-    python_version = `#{python} -c "import sys; print('{}.{}'.format(*sys.version_info[:2]))"`.strip
-    ohai "Using Python #{python_version} at #{python}"
-    
-    # Install source code to libexec
-    libexec.install "adbstatus"
-    
-    # Install dependencies manually
-    resource_dir = buildpath/"vendor"
-    resource_dir.mkpath
-    
-    resources.each do |r|
-      r.stage do
-        system python, "setup.py", "build"
-        (resource_dir/r.name).mkpath
-        cp_r ".", resource_dir/r.name
-      end
-    end
-    
-    # Create a site-packages directory
-    site_packages = libexec/"lib/site-packages"
-    site_packages.mkpath
-    
-    # Create .pth file to add resources to Python path
-    (site_packages/"adbstatus.pth").write <<~EOS
-      #{libexec}
-      #{resource_dir}/psutil
-      #{resource_dir}/pyyaml
-      #{resource_dir}/tomli
-    EOS
-    
-    # Create config directories and install configs
-    (etc/"adbstatus/ssl").mkpath
-    
-    # Install config files
-    Dir["etc/*.yml"].each do |f|
-      dest = etc/"adbstatus"/File.basename(f)
-      dest.write(File.read(f)) unless dest.exist?
-    end
-    
-    # Generate SSL certificates if they don't exist
-    ssl_cert = etc/"adbstatus/ssl/adbstatus.crt"
-    ssl_key = etc/"adbstatus/ssl/adbstatus.key"
-    
-    unless ssl_cert.exist? && ssl_key.exist?
-      system "openssl", "req", "-new", "-newkey", "rsa:2048", "-days", "3650", 
-             "-nodes", "-x509", "-subj", "/CN=adbstatus", 
-             "-keyout", ssl_key, "-out", ssl_cert
-      chmod 0644, ssl_cert
-      chmod 0600, ssl_key
-    end
-    
-    # Create executable scripts
-    {
-      "adbstatus" => ["core", "ADBStatus"],
-      "adbstatus-server" => ["server", "ADBStatusServer"],
-      "adbstatus-monitor" => ["monitor", "ADBStatusMonitor"]
-    }.each do |cmd, (mod, cls)|
-      (bin/cmd).write <<~PYTHON
-        #!/usr/bin/env python3
-        import os, sys
-        sys.path.insert(0, "#{site_packages}")
-        sys.path.insert(0, "#{libexec}")
-        #{resources.map { |r| "sys.path.insert(0, \"#{resource_dir}/#{r.name}\")" }.join("\n")}
-        
-        from adbstatus.#{mod} import #{cls}
-        sys.exit(#{cls}.main())
-      PYTHON
-      chmod 0755, bin/cmd
-    end
+    # Use the Makefile that already exists in the repository
+    system "make", "install", 
+           "PREFIX=#{prefix}",
+           "LIBEXEC=#{libexec}",
+           "ETC=#{etc}/adbstatus"
   end
 
   # Server service
