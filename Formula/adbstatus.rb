@@ -10,13 +10,13 @@ class Adbstatus < Formula
   depends_on "sleepwatcher"
   
   resource "psutil" do
-    url "https://files.pythonhosted.org/packages/d3/d3/fdfbdd26d1e84e15a2a019000f9d58d80485af2a3ddff4492b59c1f4cc7a/psutil-5.9.8.tar.gz"
-    sha256 "6be126e3225486dff286a8fb9a06246a5253f4c7c53b475ea5f5ac934e64194c"
+    url "https://files.pythonhosted.org/packages/90/c7/6dc0a455d111f68ee43f27793971cf03fe29b6ef972042549db29eec39a2/psutil-5.9.8-cp36-abi3-macosx_10_9_x86_64.whl"
+    sha256 "49826e3c7ee608eb11bf19ac4a D.d35d66b35 D"
   end
 
   resource "PyYAML" do
-    url "https://files.pythonhosted.org/packages/db/04/4971e49f663b41aca3e6dab36e60a79df5bd57ced61d1ff26a2acb176b97/PyYAML-6.0.1.tar.gz"
-    sha256 "bfdf460b1736c775f2ba9f6a92bca30bc2095067b8a9d77876d1fad6cc3b4a43"
+    url "https://files.pythonhosted.org/packages/36/2b/61d51a2c4f25ef062ae3f74576b01638bebad5e045f747ff12643df63844/PyYAML-6.0.tar.gz"
+    sha256 "68fb519c14306fec9720a2a5b45bc9f0c8d1b9c72adf45c37baedfcd949c35a2"
   end
 
   resource "tomli" do
