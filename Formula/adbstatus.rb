@@ -1,4 +1,6 @@
 class Adbstatus < Formula
+  include Language::Python::Virtualenv
+  
   desc "Android Debug Bridge (ADB) device monitor with sleep/wake support"
   homepage "https://github.com/kilna/adbstatus"
   
@@ -6,10 +8,8 @@ class Adbstatus < Formula
   
   license "MIT"
   
-  # Only depend on sleepwatcher
+  depends_on "python@3"
   depends_on "sleepwatcher"
-  
-  # Skip :python@3 dependency completely
   
   resource "psutil" do
     url "https://files.pythonhosted.org/packages/fe/8c/284d8d946e21c37bf0a7b59facf871470e35d7a468abbfbc31ef6d42099f/psutil-5.9.8.tar.gz"
@@ -27,38 +27,42 @@ class Adbstatus < Formula
   end
 
   def install
-    # Install directly to the target locations
-    libexec.install "adbstatus"
+    # Check Python version meets minimum requirement
+    python = Formula["python@3"].opt_bin/"python3"
+    python_version = Utils.safe_popen_read(python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    python_version.chomp!
+    
+    if Gem::Version.new(python_version) < Gem::Version.new("3.8")
+      odie "Python 3.8 or newer is required but you have #{python_version}"
+    end
+    
+    # Use the virtualenv_install_with_resources method from Language::Python::Virtualenv
+    virtualenv_install_with_resources
+    
+    # Create configuration directories
+    (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
-    # Copy config files
-    (etc/"adbstatus").install Dir["etc/*.yml"]
-    
-    # Create executable scripts
-    ["adbstatus", "adbstatus-server", "adbstatus-monitor"].each do |cmd|
-      mod = cmd == "adbstatus" ? "core" : cmd.sub("adbstatus-", "")
-      cls = cmd.sub("adbstatus", "ADBStatus").sub("-", "")
-      
-      (bin/cmd).write <<~PYTHON
-        #!/usr/bin/env python3
-        import sys; sys.path.insert(0, "#{libexec}"); from adbstatus.#{mod} import #{cls}; sys.exit(#{cls}.main())
-      PYTHON
-      
-      chmod 0755, bin/cmd
+    # Install config files
+    if File.exist?("etc/server.yml")
+      (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
     end
-
-    # Generate SSL certificate if needed
-    ssl_cert = etc/"adbstatus/ssl/adbstatus.crt"
-    ssl_key = etc/"adbstatus/ssl/adbstatus.key"
     
-    unless ssl_cert.exist? && ssl_key.exist?
+    if File.exist?("etc/monitor.yml")
+      (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+    end
+    
+    # Generate self-signed certificates if they don't exist
+    unless (etc/"adbstatus/ssl/adbstatus.crt").exist? && (etc/"adbstatus/ssl/adbstatus.key").exist?
       system "openssl", "req", "-new", "-newkey", "rsa:2048", "-days", "3650", 
              "-nodes", "-x509", "-subj", "/CN=adbstatus", 
-             "-keyout", ssl_key, "-out", ssl_cert
-             
-      chmod 0644, ssl_cert
-      chmod 0600, ssl_key
+             "-keyout", "#{etc}/adbstatus/ssl/adbstatus.key",
+             "-out", "#{etc}/adbstatus/ssl/adbstatus.crt"
     end
+    
+    # Ensure correct permissions on SSL files
+    system "chmod", "644", "#{etc}/adbstatus/ssl/adbstatus.crt"
+    system "chmod", "600", "#{etc}/adbstatus/ssl/adbstatus.key"
   end
 
   # Server service
