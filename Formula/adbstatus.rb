@@ -15,8 +15,35 @@ class Adbstatus < Formula
     # Install dependencies
     system venv/"bin/pip", "install", "psutil", "pyyaml"
     
-    # Install the package directly (not in editable mode)
-    system venv/"bin/pip", "install", "."
+    # Create a package_data directory structure
+    mkdir_p "adbstatus/adbstatus"
+    cp "pyproject.toml", "adbstatus/adbstatus/"
+    
+    # Make sure pyproject.toml is included in the package
+    pyproject_content = File.read("pyproject.toml")
+    if !pyproject_content.include?("package-data") && !pyproject_content.include?("package_data")
+      # Update pyproject.toml to include itself as package data
+      File.open("pyproject.toml", "a") do |f|
+        f.puts "\n[tool.setuptools.package-data]"
+        f.puts "\"adbstatus\" = [\"pyproject.toml\"]\n"
+      end
+      # Also update the copied version
+      File.open("adbstatus/adbstatus/pyproject.toml", "a") do |f|
+        f.puts "\n[tool.setuptools.package-data]"
+        f.puts "\"adbstatus\" = [\"pyproject.toml\"]\n"
+      end
+    end
+    
+    # Install the package (use sdist to ensure proper package data inclusion)
+    system venv/"bin/pip", "install", "--no-build-isolation", "."
+    
+    # Double-check if pyproject.toml exists in the installed package
+    installed_toml = Dir["#{venv}/lib/python*/site-packages/adbstatus/pyproject.toml"].first
+    if !installed_toml || !File.exist?(installed_toml)
+      # If not, manually copy it
+      target_dir = Dir["#{venv}/lib/python*/site-packages/adbstatus"].first
+      cp "pyproject.toml", target_dir if target_dir && File.directory?(target_dir)
+    end
     
     # Remove any existing scripts
     rm_f bin/"adbstatus" if File.exist?(bin/"adbstatus")
@@ -97,7 +124,7 @@ class Adbstatus < Formula
     end
   end
 
-  # Services with simplified options
+  # Services
   service do
     run [opt_bin/"adbstatus-server", "start"]
     working_dir HOMEBREW_PREFIX
