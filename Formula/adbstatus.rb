@@ -19,13 +19,54 @@ class Adbstatus < Formula
     # Link the executables
     bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
     
-    # Set up configuration
+    # Set up configuration directories
     (etc/"adbstatus/ssl").mkpath
+    (var/"log/adbstatus").mkpath
+    (var/"run/adbstatus").mkpath
     
-    # Install config files if they don't exist
-    Dir["etc/*.yml"].each do |config|
-      dest = etc/"adbstatus"/File.basename(config)
-      dest.write(File.read(config)) unless dest.exist?
+    # Process and install config files
+    Dir["etc/*.yml"].each do |config_file|
+      filename = File.basename(config_file)
+      dest = etc/"adbstatus"/filename
+      
+      # Skip if file already exists
+      unless dest.exist?
+        # Read the template content
+        content = File.read(config_file)
+        
+        # Adjust paths for Homebrew
+        brew_content = content.dup
+        
+        # Replace log file paths
+        brew_content.gsub!(/file:\s*["']~\/Library\/Logs\/adbstatus-(\w+)\.log["']/, "file: \"#{var}/log/adbstatus/\\1.log\"")
+        
+        # Replace PID file paths
+        brew_content.gsub!(/pid_file:\s*["']~\/.adbstatus_(\w+)\.pid["']/, "pid_file: \"#{var}/run/adbstatus/\\1.pid\"")
+        
+        # Replace SSL certificate paths
+        brew_content.gsub!(/cert_dir:\s*["']\/usr\/local\/etc\/adbstatus\/ssl["']/, "cert_dir: \"#{etc}/adbstatus/ssl\"")
+        brew_content.gsub!(/cert_dir:\s*["']\/opt\/homebrew\/etc\/adbstatus\/ssl["']/, "cert_dir: \"#{etc}/adbstatus/ssl\"")
+        
+        # Replace other hardcoded paths
+        brew_content.gsub!(/["']\/usr\/local\/etc\/adbstatus["']/, "\"#{etc}/adbstatus\"")
+        brew_content.gsub!(/["']\/opt\/homebrew\/etc\/adbstatus["']/, "\"#{etc}/adbstatus\"")
+        
+        # Replace any output log paths in shell commands
+        brew_content.gsub!(/>>\s*\/tmp\/(\w+)\.log/, ">> #{var}/log/adbstatus/\\1.log")
+        
+        # Write the modified content
+        dest.write(brew_content)
+        
+        # Check if paths were replaced
+        ohai "Installing #{filename} to #{dest}"
+        if brew_content != content
+          ohai "Paths were adjusted for Homebrew in #{filename}"
+        else
+          opoo "No path adjustments were made in #{filename}"
+        end
+      else
+        ohai "Config file #{filename} already exists, skipping"
+      end
     end
     
     # Generate SSL certificates if needed
@@ -65,5 +106,5 @@ class Adbstatus < Formula
   test do
     assert_predicate bin/"adbstatus", :exist?
   end
-end
 
+end

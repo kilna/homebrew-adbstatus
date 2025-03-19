@@ -1,15 +1,76 @@
-# ADB Status Homebrew Tap
+# Homebrew Tap for ADBStatus
 
-This tap installs ADB Status, an Android Debug Bridge (ADB) device monitor with sleep/wake support.
+This tap provides Homebrew formulae for [ADBStatus](https://github.com/kilna/adbstatus), an Android Debug Bridge (ADB) device monitor with sleep/wake support.
 
 ## Installation
 
 ```bash
-# Install the tap
-brew tap yourusername/adbstatus
-# Install ADB Status
-brew install adbstatus
+# First, tap the repository
+brew tap kilna/adbstatus
+
+# Then install the package
+brew install --HEAD adbstatus
 ```
+
+## Starting Services
+
+ADBStatus provides two services that can be started with Homebrew:
+
+```bash
+# Start the ADBStatus server
+brew services start adbstatus-server
+
+# Start the ADBStatus monitor
+brew services start adbstatus-monitor
+```
+
+## Configuration
+
+Configuration files are installed to:
+- `/usr/local/etc/adbstatus/` (or your Homebrew prefix)
+
+SSL certificates are automatically generated during installation at:
+- `/usr/local/etc/adbstatus/ssl/`
+
+## Requirements
+
+The formula takes care of installing Python dependencies, but requires:
+- Python 3.8 or newer
+- sleepwatcher (automatically installed as a dependency)
+
+## Development
+
+If you want to modify the formula:
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/kilna/homebrew-adbstatus.git
+   ```
+
+2. Edit the formula in `Formula/adbstatus.rb`
+
+3. Test installation:
+   ```bash
+   brew install --HEAD --build-from-source --force ./Formula/adbstatus.rb
+   ```
+
+## Troubleshooting
+
+If you encounter issues with the installation:
+
+1. Ensure Python 3.8+ is installed and working correctly
+2. Try reinstalling with:
+   ```bash
+   brew uninstall --force adbstatus
+   brew cleanup
+   brew install --HEAD --build-from-source --force adbstatus
+   ```
+
+3. Verify that pip3 is available and working:
+   ```bash
+   which pip3
+   pip3 --version
+   ```
 
 ## Features
 
@@ -53,10 +114,6 @@ adbstatus-monitor status
 adbstatus-monitor status -d  # Include device info
 adbstatus-monitor status -s  # Include server status
 ```
-
-## Configuration
-
-Edit the configuration files at:
 
 ## Logs
 
