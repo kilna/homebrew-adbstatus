@@ -27,11 +27,38 @@ class Adbstatus < Formula
   end
 
   def install
-    # Use the Makefile that already exists in the repository
-    system "make", "install", 
-           "PREFIX=#{prefix}",
-           "LIBEXEC=#{libexec}",
-           "ETC=#{etc}/adbstatus"
+    # Install directly to the target locations
+    libexec.install "adbstatus"
+    (etc/"adbstatus/ssl").mkpath
+    
+    # Copy config files
+    (etc/"adbstatus").install Dir["etc/*.yml"]
+    
+    # Create executable scripts
+    ["adbstatus", "adbstatus-server", "adbstatus-monitor"].each do |cmd|
+      mod = cmd == "adbstatus" ? "core" : cmd.sub("adbstatus-", "")
+      cls = cmd.sub("adbstatus", "ADBStatus").sub("-", "")
+      
+      (bin/cmd).write <<~PYTHON
+        #!/usr/bin/env python3
+        import sys; sys.path.insert(0, "#{libexec}"); from adbstatus.#{mod} import #{cls}; sys.exit(#{cls}.main())
+      PYTHON
+      
+      chmod 0755, bin/cmd
+    end
+
+    # Generate SSL certificate if needed
+    ssl_cert = etc/"adbstatus/ssl/adbstatus.crt"
+    ssl_key = etc/"adbstatus/ssl/adbstatus.key"
+    
+    unless ssl_cert.exist? && ssl_key.exist?
+      system "openssl", "req", "-new", "-newkey", "rsa:2048", "-days", "3650", 
+             "-nodes", "-x509", "-subj", "/CN=adbstatus", 
+             "-keyout", ssl_key, "-out", ssl_cert
+             
+      chmod 0644, ssl_cert
+      chmod 0600, ssl_key
+    end
   end
 
   # Server service
@@ -54,8 +81,8 @@ class Adbstatus < Formula
 
   def caveats
     <<~EOS
-      This formula requires Python 3.8+ to be installed on your system.
-      It will use the first Python 3.8+ found in your PATH.
+      Dependencies: Python 3.8+, tomli (for Python <3.11), psutil, pyyaml
+      If needed: pip install tomli psutil pyyaml
     EOS
   end
 
