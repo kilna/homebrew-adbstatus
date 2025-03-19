@@ -6,7 +6,7 @@ class Adbstatus < Formula
   head "https://github.com/kilna/adbstatus.git", branch: "main"
   license "MIT"
   
-  depends_on "python@3"
+  depends_on "python@3.13"
   depends_on "sleepwatcher"
   
   resource "psutil" do
