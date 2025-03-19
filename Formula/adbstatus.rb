@@ -8,23 +8,18 @@ class Adbstatus < Formula
   depends_on "sleepwatcher"
 
   def install
-    # Install source files directly
-    libexec.install "adbstatus"
+    # Create a virtual environment
+    venv = libexec
+    system Formula["python@3"].opt_bin/"python3", "-m", "venv", venv
     
-    # Create bin scripts that add libexec to Python path
-    commands = {
-      "adbstatus" => "core.ADBStatus",
-      "adbstatus-server" => "server.ADBStatusServer",
-      "adbstatus-monitor" => "monitor.ADBStatusMonitor"
-    }
+    # Install dependencies directly with pip without specifying URLs
+    system libexec/"bin/pip", "install", "psutil", "pyyaml", "tomli"
     
-    commands.each do |cmd, path_class|
-      (bin/cmd).write <<~EOS
-        #!/usr/bin/env python3
-        import sys; sys.path.insert(0, "#{libexec}"); from adbstatus.#{path_class.split(".")[0]} import #{path_class.split(".")[1]}; sys.exit(#{path_class.split(".")[1]}.main())
-      EOS
-      chmod 0755, bin/cmd
-    end
+    # Install the package itself (from the current directory)
+    system libexec/"bin/pip", "install", "-e", "."
+    
+    # Create bin stubs
+    bin.install_symlink Dir["#{libexec}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus/ssl").mkpath
@@ -56,7 +51,6 @@ class Adbstatus < Formula
   end
 
   service do
-    name "adbstatus-monitor"
     run [opt_bin/"adbstatus-monitor", "start", "-f"]
     keep_alive true
     log_path var/"log/adbstatus-monitor.log"
