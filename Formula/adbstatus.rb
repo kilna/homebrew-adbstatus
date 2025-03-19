@@ -19,7 +19,7 @@ class Adbstatus < Formula
     # Link the executables
     bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
     
-    # Set up configuration directories
+    # Set up required directories
     (etc/"adbstatus/ssl").mkpath
     (var/"log/adbstatus").mkpath
     (var/"run/adbstatus").mkpath
@@ -82,20 +82,22 @@ class Adbstatus < Formula
     end
   end
 
-  # Server service
+  # Define a single service that starts both server and monitor
   service do
-    run [opt_bin/"adbstatus-server", "start", "-f"]
+    run [bin/"adbstatus-server", "start"]
+    run_type :immediate
     working_dir HOMEBREW_PREFIX
-    keep_alive true
+    environment_variables PATH: std_service_path_env
     log_path var/"log/adbstatus/server.log"
     error_log_path var/"log/adbstatus/server.log"
   end
 
-  # Monitor service
+  # Second service for monitor
   service do
-    run [opt_bin/"adbstatus-monitor", "start", "-f"]
+    run [bin/"adbstatus-monitor", "start"]
+    run_type :immediate
     working_dir HOMEBREW_PREFIX
-    keep_alive true
+    environment_variables PATH: std_service_path_env
     log_path var/"log/adbstatus/monitor.log"
     error_log_path var/"log/adbstatus/monitor.log"
   end
@@ -105,21 +107,26 @@ class Adbstatus < Formula
       Python dependencies required: tomli (for Python <3.11), psutil, pyyaml
       Install with: pip install tomli psutil pyyaml
       
-      ADBStatus includes two services that can be managed with:
+      To manage ADBStatus services:
       
-        brew services start adbstatus    # Starts both server and monitor
-        brew services stop adbstatus     # Stops both server and monitor
+        brew services start adbstatus    # Starts server and monitor
+        brew services stop adbstatus     # Stops server and monitor
+        
+      For troubleshooting, try running directly:
+      
+        #{bin}/adbstatus-server start -f   # Run server in foreground
+        #{bin}/adbstatus-monitor start -f  # Run monitor in foreground
         
       Configuration files are located at:
         #{etc}/adbstatus/
       
       Log files are located at:
-        #{var}/log/adbstatus/
+        #{var}/log/adbstatus/server.log
+        #{var}/log/adbstatus/monitor.log
     EOS
   end
 
   test do
     assert_predicate bin/"adbstatus", :exist?
   end
-
 end
