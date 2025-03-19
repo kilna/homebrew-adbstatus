@@ -1,6 +1,4 @@
 class Adbstatus < Formula
-  include Language::Python::Virtualenv
-  
   desc "Android Debug Bridge (ADB) device monitor with sleep/wake support"
   homepage "https://github.com/kilna/adbstatus"
   
@@ -8,34 +6,61 @@ class Adbstatus < Formula
   
   license "MIT"
   
-  depends_on "python@3"
+  # Don't depend on Python - this avoids Homebrew forcing python@3.11
+  # We'll find a suitable Python ourselves
   depends_on "sleepwatcher"
 
   def install
-    # Get Python from Homebrew
-    python = Formula["python@3"].opt_bin/"python3"
+    # Find a suitable Python 3.8+ installation
+    # Check for system Python first
+    system_pythons = ["python3", "python3.8", "python3.9", "python3.10", 
+                    "python3.11", "python3.12", "python3.13"]
     
-    # Verify Python version meets minimum requirement
-    python_version = Utils.safe_popen_read(python, "-c", 
-                                         "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-    python_version.chomp!
+    python_cmd = nil
+    python_version = nil
     
-    if Gem::Version.new(python_version) < Gem::Version.new("3.8")
-      odie "Python 3.8 or newer is required but found #{python_version}"
+    # Try system Python versions first
+    system_pythons.each do |cmd|
+      if system("which #{cmd} >/dev/null 2>&1")
+        # Check if it's version 3.8+
+        version_check = `#{cmd} -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))'`.chomp
+        if version_check.match?(/^\d+\.\d+$/) && Gem::Version.new(version_check) >= Gem::Version.new("3.8")
+          python_cmd = cmd
+          python_version = version_check
+          break
+        end
+      end
     end
     
-    # Create a virtualenv and install package from Git
-    venv = virtualenv_create(libexec, python)
-    system libexec/"bin/pip", "install", "git+https://github.com/kilna/adbstatus.git@main"
+    # If we didn't find a suitable Python, fail
+    if python_cmd.nil?
+      odie "No suitable Python 3.8+ found in your PATH. Please install Python 3.8 or newer."
+    end
     
-    # Create bin stubs
-    bin.install_symlink Dir["#{libexec}/bin/adbstatus*"]
+    ohai "Using Python #{python_version} (#{python_cmd})"
+    
+    # Create a virtual environment
+    venv_dir = libexec
+    system python_cmd, "-m", "venv", venv_dir
+    
+    # Get the path to Python and pip in the virtual environment
+    venv_python = "#{venv_dir}/bin/python"
+    venv_pip = "#{venv_dir}/bin/pip"
+    
+    # Make sure pip is up-to-date in the virtual environment
+    system venv_python, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"
+    
+    # Install adbstatus from Git
+    system venv_python, "-m", "pip", "install", "git+https://github.com/kilna/adbstatus.git@main"
+    
+    # Install binaries to bin
+    bin.install_symlink Dir["#{venv_dir}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
-    # Install config files
+    # Install config files if they exist in the repo
     if File.exist?("etc/server.yml")
       (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
     end
