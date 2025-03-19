@@ -25,9 +25,97 @@ class Adbstatus < Formula
       odie "Python 3.8 or newer is required but you have #{python_version}"
     end
     
-    # Use the virtualenv_install_with_resources method
-    # This handles creating a venv and installing your package correctly
-    virtualenv_install_with_resources
+    # Create a debug script that will run pip with more verbose output
+    debug_py = buildpath/"debug_install.py"
+    debug_py.write <<~EOS
+      #!/usr/bin/env python3
+      import os
+      import sys
+      import subprocess
+      import time
+      
+      # Write to a log file in the user's home directory
+      log_path = os.path.expanduser("~/adbstatus_install_debug.log")
+      
+      with open(log_path, "w") as f:
+          f.write(f"=== ADBStatus Installation Debug Log ===\\n")
+          f.write(f"Date: {time.ctime()}\\n")
+          f.write(f"Python: {sys.executable}\\n")
+          f.write(f"Version: {sys.version}\\n")
+          f.write(f"Working dir: {os.getcwd()}\\n\\n")
+          
+          # Check if required files exist
+          f.write("== Repository contents ==\\n")
+          for root, dirs, files in os.walk("."):
+              for file in files:
+                  if file.endswith(".py") or file in ["pyproject.toml", "setup.py", "setup.cfg"]:
+                      f.write(f"{os.path.join(root, file)}\\n")
+          
+          # Check if package is importable
+          f.write("\\n== Package structure ==\\n")
+          if os.path.exists("adbstatus"):
+              f.write("adbstatus directory exists\\n")
+              # Print contents
+              for root, dirs, files in os.walk("adbstatus"):
+                  for file in files:
+                      if file.endswith(".py"):
+                          f.write(f"{os.path.join(root, file)}\\n")
+          else:
+              f.write("ERROR: adbstatus directory not found!\\n")
+          
+          # Attempt installation with pip with extra verbosity
+          f.write("\\n== Running pip install ==\\n")
+          cmd = [
+              sys.executable, 
+              "-m", 
+              "pip", 
+              "install", 
+              "--verbose", 
+              "."
+          ]
+          f.write(f"Command: {' '.join(cmd)}\\n\\n")
+          
+          try:
+              process = subprocess.Popen(
+                  cmd,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  text=True
+              )
+              
+              # Capture output in real-time
+              for line in process.stdout:
+                  f.write(f"OUT: {line}")
+              
+              for line in process.stderr:
+                  f.write(f"ERR: {line}")
+              
+              process.wait()
+              f.write(f"\\nExit code: {process.returncode}\\n")
+          except Exception as e:
+              f.write(f"Exception during pip install: {e}\\n")
+              import traceback
+              f.write(traceback.format_exc())
+      
+      print(f"Debug log written to {log_path}")
+    EOS
+    
+    # Make the debug script executable
+    chmod 0755, debug_py
+    
+    # Run the debug script to gather information
+    system python, debug_py.to_s
+    
+    # Now proceed with the proper virtual environment installation
+    begin
+      # Try installing with virtualenv
+      virtualenv_install_with_resources
+    rescue => e
+      # If the virtualenv installation fails, capture the error
+      opoo "Virtualenv installation failed: #{e}"
+      opoo "See ~/adbstatus_install_debug.log for detailed error information"
+      raise
+    end
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
