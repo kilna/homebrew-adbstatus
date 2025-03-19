@@ -19,7 +19,7 @@ class Adbstatus < Formula
     # Link the executables
     bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
     
-    # Set up required directories
+    # Set up configuration directories
     (etc/"adbstatus/ssl").mkpath
     (var/"log/adbstatus").mkpath
     (var/"run/adbstatus").mkpath
@@ -56,16 +56,6 @@ class Adbstatus < Formula
         
         # Write the modified content
         dest.write(brew_content)
-        
-        # Check if paths were replaced
-        ohai "Installing #{filename} to #{dest}"
-        if brew_content != content
-          ohai "Paths were adjusted for Homebrew in #{filename}"
-        else
-          opoo "No path adjustments were made in #{filename}"
-        end
-      else
-        ohai "Config file #{filename} already exists, skipping"
       end
     end
     
@@ -82,22 +72,24 @@ class Adbstatus < Formula
     end
   end
 
-  # Define a single service that starts both server and monitor
+  # Server service with PYTHONPATH
   service do
-    run [bin/"adbstatus-server", "start"]
+    run [opt_bin/"adbstatus-server", "start"]
     run_type :immediate
     working_dir HOMEBREW_PREFIX
-    environment_variables PATH: std_service_path_env
+    environment_variables PATH: std_service_path_env, 
+                          PYTHONPATH: opt_libexec.to_s
     log_path var/"log/adbstatus/server.log"
     error_log_path var/"log/adbstatus/server.log"
   end
 
-  # Second service for monitor
+  # Monitor service with PYTHONPATH
   service do
-    run [bin/"adbstatus-monitor", "start"]
+    run [opt_bin/"adbstatus-monitor", "start"]
     run_type :immediate
     working_dir HOMEBREW_PREFIX
-    environment_variables PATH: std_service_path_env
+    environment_variables PATH: std_service_path_env, 
+                          PYTHONPATH: opt_libexec.to_s
     log_path var/"log/adbstatus/monitor.log"
     error_log_path var/"log/adbstatus/monitor.log"
   end
