@@ -12,19 +12,17 @@ class Adbstatus < Formula
     venv = libexec
     system Formula["python@3"].opt_bin/"python3", "-m", "venv", venv
     
-    # Install dependencies directly with pip without specifying URLs
-    system libexec/"bin/pip", "install", "psutil", "pyyaml", "tomli"
+    # Install dependencies and package
+    system venv/"bin/pip", "install", "psutil", "pyyaml", "tomli"
+    system venv/"bin/pip", "install", "-e", "."
     
-    # Install the package itself (from the current directory)
-    system libexec/"bin/pip", "install", "-e", "."
+    # Link the executables
+    bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
     
-    # Create bin stubs
-    bin.install_symlink Dir["#{libexec}/bin/adbstatus*"]
-    
-    # Create configuration directories
+    # Set up configuration
     (etc/"adbstatus/ssl").mkpath
     
-    # Install config files
+    # Install config files if they don't exist
     Dir["etc/*.yml"].each do |config|
       dest = etc/"adbstatus"/File.basename(config)
       dest.write(File.read(config)) unless dest.exist?
