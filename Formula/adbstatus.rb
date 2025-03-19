@@ -29,31 +29,25 @@ class Adbstatus < Formula
       odie "Python 3.8 or newer is required but you have #{python_version}"
     end
     
-    # Create the virtualenv using Homebrew's helper
+    # Install using pip install git+URL approach instead of local directory
+    # This is using the approach we know works from your earlier testing
     venv = virtualenv_create(libexec, python)
-    
-    # Install directly from Git URL
-    # This uses the same pip install git+url approach that worked for you
     system venv.pip_install("git+https://github.com/kilna/adbstatus.git@main")
     
-    # Install binaries to bin/ with Homebrew
-    bin_paths = Dir["#{libexec}/bin/*"]
-    bin_paths.reject! { |p| File.basename(p) =~ /^pip[0-9.]*$|^python[0-9.]*$|^wheel$|^setuptools$/ }
-    bin.install_symlink(bin_paths)
+    # Create bin stubs with Homebrew that use the venv Python
+    bin.install_symlink Dir["#{libexec}/bin/*"]
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
-    # Copy config files from the cloned repo
-    repo_dir = buildpath
-    
-    if File.exist?(repo_dir/"etc/server.yml")
-      (etc/"adbstatus").install repo_dir/"etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
+    # Install config files from the repository
+    if File.exist?("etc/server.yml")
+      (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
     end
     
-    if File.exist?(repo_dir/"etc/monitor.yml")
-      (etc/"adbstatus").install repo_dir/"etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+    if File.exist?("etc/monitor.yml")
+      (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
     end
     
     # Generate self-signed certificates if they don't exist
