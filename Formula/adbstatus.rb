@@ -1,12 +1,10 @@
 class Adbstatus < Formula
-  include Language::Python::Virtualenv
-  
   desc "Android Debug Bridge (ADB) device monitor with sleep/wake support"
   homepage "https://github.com/kilna/adbstatus"
   head "https://github.com/kilna/adbstatus.git", branch: "main"
   license "MIT"
   
-  depends_on "python@3.13"
+  depends_on "python@3"
   depends_on "sleepwatcher"
   
   resource "psutil" do
@@ -25,7 +23,29 @@ class Adbstatus < Formula
   end
 
   def install
-    virtualenv_install_with_resources
+    # Create a virtual environment
+    venv = libexec
+    system Formula["python@3"].opt_bin/"python3", "-m", "venv", venv
+    
+    # Get paths to Python and pip in the virtual environment
+    venv_python = "#{venv}/bin/python"
+    venv_pip = "#{venv}/bin/pip"
+    
+    # Make sure pip, setuptools, and wheel are up to date in the virtual environment
+    system venv_python, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"
+    
+    # Install resources
+    resources.each do |r|
+      r.stage do
+        system venv_pip, "install", "--no-deps", "--ignore-installed", "."
+      end
+    end
+    
+    # Install the package without using --prefix and --target together
+    system venv_pip, "install", "--no-deps", "--ignore-installed", "."
+    
+    # Create bin stubs
+    bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus/ssl").mkpath
