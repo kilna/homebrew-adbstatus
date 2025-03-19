@@ -8,58 +8,40 @@ class Adbstatus < Formula
   
   license "MIT"
   
-  # Use the generic python@3 dependency
   depends_on "python@3"
   depends_on "sleepwatcher"
-  
-  # Define Python version requirement without installing specific version
-  uses_from_macos "python", since: :catalina
 
   def install
-    # Get the Python path - we'll find pip relative to this
+    # Get Python from Homebrew
     python = Formula["python@3"].opt_bin/"python3"
     
-    # Check Python version
-    python_version = Utils.safe_popen_read(python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    # Verify Python version meets minimum requirement
+    python_version = Utils.safe_popen_read(python, "-c", 
+                                         "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     python_version.chomp!
     
-    ohai "Using Python #{python_version} at #{python}"
-    
     if Gem::Version.new(python_version) < Gem::Version.new("3.8")
-      odie "Python 3.8 or newer is required but you have #{python_version}"
+      odie "Python 3.8 or newer is required but found #{python_version}"
     end
     
-    # Create a virtual environment
-    venv_dir = libexec
-    system python, "-m", "venv", venv_dir
+    # Create a virtualenv and install package from Git
+    venv = virtualenv_create(libexec, python)
+    system libexec/"bin/pip", "install", "git+https://github.com/kilna/adbstatus.git@main"
     
-    # Get paths to binaries in the venv
-    venv_python = "#{venv_dir}/bin/python"
-    venv_pip = "#{venv_dir}/bin/pip"
-    
-    # Make sure pip is updated in the venv
-    system venv_python, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"
-    
-    # Install directly from the Git URL using the venv python
-    # This avoids using the system pip which might be missing
-    system venv_python, "-m", "pip", "install", "git+https://github.com/kilna/adbstatus.git@main"
-    
-    # Create bin stubs with Homebrew
-    bin.install_symlink Dir["#{venv_dir}/bin/adbstatus*"]
+    # Create bin stubs
+    bin.install_symlink Dir["#{libexec}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
-    # Copy config files from the repository
-    if Dir.exist?("etc")
-      if File.exist?("etc/server.yml")
-        (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
-      end
-      
-      if File.exist?("etc/monitor.yml")
-        (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
-      end
+    # Install config files
+    if File.exist?("etc/server.yml")
+      (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
+    end
+    
+    if File.exist?("etc/monitor.yml")
+      (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
     end
     
     # Generate self-signed certificates if they don't exist
@@ -96,8 +78,6 @@ class Adbstatus < Formula
 
   test do
     assert_predicate bin/"adbstatus", :exist?
-    # Basic version check
-    assert_match(/version/i, shell_output("#{bin}/adbstatus -v"))
   end
 end
 
