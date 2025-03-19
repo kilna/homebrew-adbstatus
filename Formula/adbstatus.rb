@@ -105,6 +105,22 @@ class Adbstatus < Formula
     <<~EOS
       Python dependencies required: tomli (for Python <3.11), psutil, pyyaml
       Install with: pip install tomli psutil pyyaml
+      
+      ADBStatus includes two services that can be managed together:
+      
+        brew services start adbstatus    # Starts both the server and monitor
+        brew services stop adbstatus     # Stops both the server and monitor
+        brew services restart adbstatus  # Restarts both the server and monitor
+      
+      You can view the status of both services with:
+        
+        brew services list | grep adbstatus
+      
+      Configuration files are located at:
+        #{etc}/adbstatus/
+      
+      Log files are located at:
+        #{var}/log/adbstatus/
     EOS
   end
 
