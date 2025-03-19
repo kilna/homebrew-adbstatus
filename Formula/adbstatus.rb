@@ -4,19 +4,25 @@ class Adbstatus < Formula
   license "MIT"
   head "https://github.com/kilna/adbstatus.git", branch: "main"
 
-  depends_on "python@3.11"
+  depends_on "python@3"
   depends_on "sleepwatcher"
 
   def install
+    # Get the Python version dynamically
+    python = Formula["python@3"].opt_bin/"python3"
+    python_version = Utils.safe_popen_read(python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    python_version.chomp!
+    
+    # Configure Python package path based on detected version
+    ENV["PYTHONPATH"] = libexec/"lib/python#{python_version}/site-packages"
+    
     # Install Python package with pip
-    # This automatically creates the entry point scripts
-    ENV["PYTHONPATH"] = libexec/"lib/python3.11/site-packages"
-    system Formula["python@3.11"].opt_bin/"pip3", "install", *std_pip_args, "--target=#{libexec}/lib/python3.11/site-packages", "."
+    system python, "-m", "pip", "install", *std_pip_args, "--target=#{ENV["PYTHONPATH"]}", "."
     
     # Create bin stubs that use the correct Python interpreter
     bin.install Dir["#{libexec}/bin/*"]
     bin.env_script_all_files(libexec/"bin", 
-                            PATH: "#{Formula["python@3.11"].opt_bin}:#{ENV["PATH"]}",
+                            PATH: "#{Formula["python@3"].opt_bin}:#{ENV["PATH"]}",
                             PYTHONPATH: ENV["PYTHONPATH"])
     
     # Create configuration directories
