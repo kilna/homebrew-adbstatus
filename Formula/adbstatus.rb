@@ -15,42 +15,18 @@ class Adbstatus < Formula
     # Install dependencies
     system venv/"bin/pip", "install", "psutil", "pyyaml"
     
-    # Create a package_data directory structure
-    mkdir_p "adbstatus/adbstatus"
-    cp "pyproject.toml", "adbstatus/adbstatus/"
+    # Install the package
+    system venv/"bin/pip", "install", "."
     
-    # Make sure pyproject.toml is included in the package
-    pyproject_content = File.read("pyproject.toml")
-    if !pyproject_content.include?("package-data") && !pyproject_content.include?("package_data")
-      # Update pyproject.toml to include itself as package data
-      File.open("pyproject.toml", "a") do |f|
-        f.puts "\n[tool.setuptools.package-data]"
-        f.puts "\"adbstatus\" = [\"pyproject.toml\"]\n"
-      end
-      # Also update the copied version
-      File.open("adbstatus/adbstatus/pyproject.toml", "a") do |f|
-        f.puts "\n[tool.setuptools.package-data]"
-        f.puts "\"adbstatus\" = [\"pyproject.toml\"]\n"
-      end
+    # Copy pyproject.toml to the package directory in the virtualenv
+    site_packages = Dir["#{venv}/lib/python*/site-packages"].first
+    if site_packages
+      package_dir = "#{site_packages}/adbstatus"
+      mkdir_p package_dir unless File.directory?(package_dir)
+      cp "pyproject.toml", package_dir/ if File.exist?("pyproject.toml")
     end
     
-    # Install the package (use sdist to ensure proper package data inclusion)
-    system venv/"bin/pip", "install", "--no-build-isolation", "."
-    
-    # Double-check if pyproject.toml exists in the installed package
-    installed_toml = Dir["#{venv}/lib/python*/site-packages/adbstatus/pyproject.toml"].first
-    if !installed_toml || !File.exist?(installed_toml)
-      # If not, manually copy it
-      target_dir = Dir["#{venv}/lib/python*/site-packages/adbstatus"].first
-      cp "pyproject.toml", target_dir if target_dir && File.directory?(target_dir)
-    end
-    
-    # Remove any existing scripts
-    rm_f bin/"adbstatus" if File.exist?(bin/"adbstatus")
-    rm_f bin/"adbstatus-server" if File.exist?(bin/"adbstatus-server")
-    rm_f bin/"adbstatus-monitor" if File.exist?(bin/"adbstatus-monitor")
-    
-    # Create simple wrapper scripts that use the virtualenv Python
+    # Create wrapper scripts
     (bin/"adbstatus").write <<~EOS
       #!/bin/bash
       exec "#{venv}/bin/python3" -m adbstatus.core "$@"
@@ -146,8 +122,8 @@ class Adbstatus < Formula
       
       To manage ADBStatus services:
       
-        brew services start adbstatus    # Starts server and monitor
-        brew services stop adbstatus     # Stops server and monitor
+        brew services start adbstatus    # Starts both services
+        brew services stop adbstatus     # Stops both services
         
       For troubleshooting, try running directly:
       
