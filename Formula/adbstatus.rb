@@ -1,6 +1,4 @@
 class Adbstatus < Formula
-  include Language::Python::Virtualenv
-  
   desc "Android Debug Bridge (ADB) device monitor with sleep/wake support"
   homepage "https://github.com/kilna/adbstatus"
   head "https://github.com/kilna/adbstatus.git", branch: "main"
@@ -10,27 +8,23 @@ class Adbstatus < Formula
   depends_on "sleepwatcher"
 
   def install
-    # Create a virtual environment with pip
-    venv = libexec
-    system Formula["python@3"].opt_bin/"python3", "-m", "venv", venv
+    # Install source files directly
+    libexec.install "adbstatus"
     
-    # Install pip into the virtualenv if it doesn't exist
-    unless File.exist?("#{venv}/bin/pip")
-      system Formula["python@3"].opt_bin/"python3", "-m", "ensurepip"
-      system Formula["python@3"].opt_bin/"python3", "-m", "pip", "install", "--upgrade", "pip"
+    # Create bin scripts that add libexec to Python path
+    commands = {
+      "adbstatus" => "core.ADBStatus",
+      "adbstatus-server" => "server.ADBStatusServer",
+      "adbstatus-monitor" => "monitor.ADBStatusMonitor"
+    }
+    
+    commands.each do |cmd, path_class|
+      (bin/cmd).write <<~EOS
+        #!/usr/bin/env python3
+        import sys; sys.path.insert(0, "#{libexec}"); from adbstatus.#{path_class.split(".")[0]} import #{path_class.split(".")[1]}; sys.exit(#{path_class.split(".")[1]}.main())
+      EOS
+      chmod 0755, bin/cmd
     end
-    
-    # Get the path to pip in the virtual environment
-    venv_pip = "#{venv}/bin/pip"
-    
-    # Install dependencies directly using the virtualenv's pip
-    system venv_pip, "install", "psutil", "pyyaml", "tomli"
-    
-    # Install the package itself (from the current directory)
-    system venv_pip, "install", "-e", "."
-    
-    # Create bin stubs
-    bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus/ssl").mkpath
@@ -67,6 +61,13 @@ class Adbstatus < Formula
     keep_alive true
     log_path var/"log/adbstatus-monitor.log"
     error_log_path var/"log/adbstatus-monitor.log"
+  end
+  
+  def caveats
+    <<~EOS
+      Python dependencies required: tomli (for Python <3.11), psutil, pyyaml
+      Install with: pip install tomli psutil pyyaml
+    EOS
   end
 
   test do
