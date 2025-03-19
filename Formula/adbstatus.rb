@@ -10,14 +10,16 @@ class Adbstatus < Formula
   depends_on "sleepwatcher"
   
   def install
-    # Install source code and create config directories
+    # Install source code
     libexec.install "adbstatus"
+    
+    # Create config and ssl directories
     (etc/"adbstatus/ssl").mkpath
     
-    # Install configs if they don't exist
-    Dir["etc/*.yml"].each do |config_file|
-      dest = etc/"adbstatus"/File.basename(config_file)
-      dest.write(File.read(config_file)) unless dest.exist?
+    # Install configs
+    Dir["etc/*.yml"].each do |config|
+      dest = etc/"adbstatus"/File.basename(config)
+      dest.write(File.read(config)) unless dest.exist?
     end
     
     # Generate SSL certificates if needed
@@ -33,13 +35,16 @@ class Adbstatus < Formula
     end
     
     # Create executable scripts
-    ["adbstatus", "adbstatus-server", "adbstatus-monitor"].each do |cmd|
-      module_path = cmd == "adbstatus" ? "core" : cmd.sub("adbstatus-", "")
-      class_name = cmd.sub("adbstatus", "ADBStatus").sub("-", "")
+    {
+      "adbstatus" => "core:ADBStatus",
+      "adbstatus-server" => "server:ADBStatusServer",
+      "adbstatus-monitor" => "monitor:ADBStatusMonitor"
+    }.each do |cmd, path_class|
+      mod_path, class_name = path_class.split(":")
       
       (bin/cmd).write <<~PYTHON
         #!/usr/bin/env python3
-        import sys; sys.path.insert(0, "#{libexec}"); from adbstatus.#{module_path} import #{class_name}; sys.exit(#{class_name}.main())
+        import sys; sys.path.insert(0, "#{libexec}"); from adbstatus.#{mod_path} import #{class_name}; sys.exit(#{class_name}.main())
       PYTHON
       chmod 0755, bin/cmd
     end
