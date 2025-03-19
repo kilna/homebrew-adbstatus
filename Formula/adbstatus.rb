@@ -4,19 +4,18 @@ class Adbstatus < Formula
   head "https://github.com/kilna/adbstatus.git", branch: "main"
   license "MIT"
   
-  depends_on "python@3"
+  depends_on "python@3.11"
   depends_on "sleepwatcher"
 
   def install
     # Create a virtual environment
     venv = libexec
-    system Formula["python@3"].opt_bin/"python3", "-m", "venv", venv
+    system Formula["python@3.11"].opt_bin/"python3", "-m", "venv", venv
     
     # Install dependencies
-    system venv/"bin/pip", "install", "psutil", "pyyaml", "tomli"
+    system venv/"bin/pip", "install", "psutil", "pyyaml"
     
     # Install the package directly (not in editable mode)
-    # This ensures proper package installation
     system venv/"bin/pip", "install", "."
     
     # Remove any existing scripts
@@ -115,8 +114,8 @@ class Adbstatus < Formula
   
   def caveats
     <<~EOS
-      Python dependencies required: tomli (for Python <3.11), psutil, pyyaml
-      Install with: pip install tomli psutil pyyaml
+      Python dependencies required: psutil, pyyaml
+      Python 3.11 or newer is required.
       
       To manage ADBStatus services:
       
