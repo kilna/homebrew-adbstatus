@@ -8,7 +8,7 @@ class Adbstatus < Formula
   
   license "MIT"
   
-  # Use Python 3 without specifying a minor version
+  # Use the generic python@3 dependency
   depends_on "python@3"
   depends_on "sleepwatcher"
   
@@ -16,23 +16,29 @@ class Adbstatus < Formula
   uses_from_macos "python", since: :catalina
 
   def install
-    # Check Python version meets minimum requirement
+    # Get Python executable
     python = Formula["python@3"].opt_bin/"python3"
+    
+    # Check Python version
     python_version = Utils.safe_popen_read(python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     python_version.chomp!
+    
+    ohai "Using Python #{python_version} at #{python}"
     
     if Gem::Version.new(python_version) < Gem::Version.new("3.8")
       odie "Python 3.8 or newer is required but you have #{python_version}"
     end
     
-    # Create a virtualenv
+    # Create the virtualenv using Homebrew's helper
     venv = virtualenv_create(libexec, python)
     
-    # Install directly from Git URL instead of local directory
+    # Install directly from Git URL
+    # This uses the same pip install git+url approach that worked for you
     system venv.pip_install("git+https://github.com/kilna/adbstatus.git@main")
     
-    # Symlink all the binaries
+    # Install binaries to bin/ with Homebrew
     bin_paths = Dir["#{libexec}/bin/*"]
+    bin_paths.reject! { |p| File.basename(p) =~ /^pip[0-9.]*$|^python[0-9.]*$|^wheel$|^setuptools$/ }
     bin.install_symlink(bin_paths)
     
     # Create configuration directories
@@ -83,8 +89,9 @@ class Adbstatus < Formula
   end
 
   test do
-    # Simple test that just checks if the binaries exist
     assert_predicate bin/"adbstatus", :exist?
+    # Basic version check
+    assert_match(/version/i, shell_output("#{bin}/adbstatus -v"))
   end
 end
 
