@@ -25,16 +25,22 @@ class Adbstatus < Formula
       odie "Python 3.8 or newer is required but you have #{python_version}"
     end
     
-    # Use the virtualenv_install_with_resources method from Language::Python::Virtualenv
+    # Use the virtualenv_install_with_resources method
+    # This handles creating a venv and installing your package correctly
     virtualenv_install_with_resources
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
-    # Install config files
-    (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
-    (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+    # Install config files if they exist
+    if File.exist?("etc/server.yml")
+      (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
+    end
+    
+    if File.exist?("etc/monitor.yml")
+      (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+    end
     
     # Generate self-signed certificates if they don't exist
     unless (etc/"adbstatus/ssl/adbstatus.crt").exist? && (etc/"adbstatus/ssl/adbstatus.key").exist?
@@ -69,9 +75,8 @@ class Adbstatus < Formula
   end
 
   test do
+    # Simple test that just checks if the binaries exist
     assert_predicate bin/"adbstatus", :exist?
-    # Add a simple version check if possible
-    system bin/"adbstatus", "-v" rescue nil
   end
 end
 
