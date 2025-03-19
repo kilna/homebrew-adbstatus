@@ -27,42 +27,38 @@ class Adbstatus < Formula
   end
 
   def install
-    # Check Python version meets minimum requirement
-    python = Formula["python@3"].opt_bin/"python3"
-    python_version = Utils.safe_popen_read(python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-    python_version.chomp!
+    virtualenv_create(libexec, "python3")
     
-    if Gem::Version.new(python_version) < Gem::Version.new("3.8")
-      odie "Python 3.8 or newer is required but you have #{python_version}"
+    resources.each do |r|
+      r.stage do
+        system libexec/"bin/pip", "install", "-v", "--no-deps", 
+               "--ignore-installed", "./"
+      end
     end
     
-    # Use the virtualenv_install_with_resources method from Language::Python::Virtualenv
-    virtualenv_install_with_resources
+    # Install directly from source directory
+    system libexec/"bin/pip", "install", "-v", "--no-deps", "--ignore-installed", "./"
     
     # Create configuration directories
-    (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
     # Install config files
-    if File.exist?("etc/server.yml")
-      (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
-    end
+    (etc/"adbstatus").install Dir["etc/*.yml"]
     
-    if File.exist?("etc/monitor.yml")
-      (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
-    end
+    # Generate SSL certificates if needed
+    ssl_cert = etc/"adbstatus/ssl/adbstatus.crt"
+    ssl_key = etc/"adbstatus/ssl/adbstatus.key"
     
-    # Generate self-signed certificates if they don't exist
-    unless (etc/"adbstatus/ssl/adbstatus.crt").exist? && (etc/"adbstatus/ssl/adbstatus.key").exist?
+    unless ssl_cert.exist? && ssl_key.exist?
       system "openssl", "req", "-new", "-newkey", "rsa:2048", "-days", "3650", 
              "-nodes", "-x509", "-subj", "/CN=adbstatus", 
-             "-keyout", "#{etc}/adbstatus/ssl/adbstatus.key",
-             "-out", "#{etc}/adbstatus/ssl/adbstatus.crt"
+             "-keyout", ssl_key, "-out", ssl_cert
+      chmod 0644, ssl_cert
+      chmod 0600, ssl_key
     end
     
-    # Ensure correct permissions on SSL files
-    system "chmod", "644", "#{etc}/adbstatus/ssl/adbstatus.crt"
-    system "chmod", "600", "#{etc}/adbstatus/ssl/adbstatus.key"
+    # Create bin stubs
+    bin.install_symlink Dir["#{libexec}/bin/adbstatus*"]
   end
 
   # Server service
