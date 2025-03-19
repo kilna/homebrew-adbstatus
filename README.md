@@ -23,25 +23,48 @@ brew install adbstatus
 After installation, services will automatically start:
 
 ```bash
-# Manually start/stop services
-brew services start adbstatus
-brew services stop adbstatus
+# Start/stop individual services
+brew services start adbstatus-server
+brew services start adbstatus-monitor
+brew services stop adbstatus-server
+brew services stop adbstatus-monitor
 
 # Check status
 brew services list | grep adbstatus
 ```
 
+You can also use the command-line tools directly:
+
+```bash
+# Check ADB device status
+adbstatus              # JSON output
+adbstatus -t           # Text output
+
+# Server management
+adbstatus-server start
+adbstatus-server stop
+adbstatus-server status
+adbstatus-server status -d  # Include device info
+
+# Monitor management
+adbstatus-monitor start
+adbstatus-monitor stop
+adbstatus-monitor status
+adbstatus-monitor status -d  # Include device info
+adbstatus-monitor status -s  # Include server status
+```
+
+## Configuration
+
+Edit the configuration files at:
+
 ## Logs
 
 Log files are located at:
-- `~/Library/Logs/adb-status.log`
-- `~/Library/Logs/adb-monitor.log`
 
-## Uninstallation
+## Author
 
-```bash
-brew uninstall adbstatus
-```
+Kilna, Anthony <kilna@kilna.com>
 
 ## License
 
