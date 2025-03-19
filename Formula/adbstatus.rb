@@ -6,67 +6,63 @@ class Adbstatus < Formula
   
   license "MIT"
   
-  # Don't depend on Python - this avoids Homebrew forcing python@3.11
-  # We'll find a suitable Python ourselves
+  # Only depend on sleepwatcher, not Python
   depends_on "sleepwatcher"
+  
+  # This is the key part - create a resource that will be fetched directly
+  resource "adbstatus" do
+    url "https://github.com/kilna/adbstatus.git", branch: "main"
+  end
 
   def install
-    # Find a suitable Python 3.8+ installation
-    # Check for system Python first
-    system_pythons = ["python3", "python3.8", "python3.9", "python3.10", 
-                    "python3.11", "python3.12", "python3.13"]
-    
+    # Find a Python 3.8+ in the system
     python_cmd = nil
-    python_version = nil
-    
-    # Try system Python versions first
-    system_pythons.each do |cmd|
-      if system("which #{cmd} >/dev/null 2>&1")
-        # Check if it's version 3.8+
-        version_check = `#{cmd} -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))'`.chomp
-        if version_check.match?(/^\d+\.\d+$/) && Gem::Version.new(version_check) >= Gem::Version.new("3.8")
-          python_cmd = cmd
-          python_version = version_check
-          break
-        end
+    ["python3.13", "python3.12", "python3.11", "python3.10", "python3.9", "python3.8", "python3"].each do |cmd|
+      if system("which #{cmd} >/dev/null 2>&1") && 
+         system("#{cmd} -c 'import sys; exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1")
+        python_cmd = cmd
+        break
       end
     end
     
-    # If we didn't find a suitable Python, fail
     if python_cmd.nil?
-      odie "No suitable Python 3.8+ found in your PATH. Please install Python 3.8 or newer."
+      odie "No Python 3.8+ found in the system. Please install Python 3.8 or newer."
     end
     
-    ohai "Using Python #{python_version} (#{python_cmd})"
+    # Get the Python version
+    python_version = `#{python_cmd} -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"`.strip
+    ohai "Using system Python #{python_version} (#{python_cmd})"
     
     # Create a virtual environment
     venv_dir = libexec
     system python_cmd, "-m", "venv", venv_dir
     
-    # Get the path to Python and pip in the virtual environment
+    # Get venv paths
     venv_python = "#{venv_dir}/bin/python"
-    venv_pip = "#{venv_dir}/bin/pip"
     
-    # Make sure pip is up-to-date in the virtual environment
+    # Ensure pip is up-to-date in the venv
     system venv_python, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"
     
-    # Install adbstatus from Git
+    # Install adbstatus directly from GitHub instead of local source
+    # This is what we know works from your testing
     system venv_python, "-m", "pip", "install", "git+https://github.com/kilna/adbstatus.git@main"
     
-    # Install binaries to bin
+    # Create bin stubs
     bin.install_symlink Dir["#{venv_dir}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus").mkpath
     (etc/"adbstatus/ssl").mkpath
     
-    # Install config files if they exist in the repo
-    if File.exist?("etc/server.yml")
-      (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
-    end
-    
-    if File.exist?("etc/monitor.yml")
-      (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+    # Install config files if they exist
+    resource("adbstatus").stage do
+      if File.exist?("etc/server.yml")
+        (etc/"adbstatus").install "etc/server.yml" unless (etc/"adbstatus/server.yml").exist?
+      end
+      
+      if File.exist?("etc/monitor.yml")
+        (etc/"adbstatus").install "etc/monitor.yml" unless (etc/"adbstatus/monitor.yml").exist?
+      end
     end
     
     # Generate self-signed certificates if they don't exist
