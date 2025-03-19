@@ -82,18 +82,23 @@ class Adbstatus < Formula
     end
   end
 
+  # Define services with correct names
   service do
     run [opt_bin/"adbstatus-server", "start", "-f"]
     keep_alive true
-    log_path var/"log/adbstatus-server.log"
-    error_log_path var/"log/adbstatus-server.log"
+    log_path var/"log/adbstatus/server.log"
+    error_log_path var/"log/adbstatus/server.log"
+    working_dir HOMEBREW_PREFIX
+    name "adbstatus-server"
   end
 
   service do
     run [opt_bin/"adbstatus-monitor", "start", "-f"]
     keep_alive true
-    log_path var/"log/adbstatus-monitor.log"
-    error_log_path var/"log/adbstatus-monitor.log"
+    log_path var/"log/adbstatus/monitor.log"
+    error_log_path var/"log/adbstatus/monitor.log"
+    working_dir HOMEBREW_PREFIX
+    name "adbstatus-monitor"
   end
   
   def caveats
