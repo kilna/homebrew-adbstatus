@@ -15,44 +15,56 @@ class Adbstatus < Formula
     # Install dependencies
     system venv/"bin/pip", "install", "psutil", "pyyaml"
     
-    # Print directory structure and pyproject.toml contents for debugging
-    puts "Original pyproject.toml content:"
-    system "cat", "pyproject.toml"
-    
     # Install the package
     system venv/"bin/pip", "install", "."
     
     # Find the site-packages directory where the package was installed
     site_packages = Dir["#{venv}/lib/python*/site-packages"].first
-    if site_packages
-      package_dir = "#{site_packages}/adbstatus"
-      
-      puts "\nSite packages directory: #{site_packages}"
-      puts "Package directory: #{package_dir}"
-      
-      # Copy pyproject.toml to the installed package directory
-      mkdir_p package_dir unless File.directory?(package_dir)
-      if File.exist?("pyproject.toml")
-        cp "pyproject.toml", package_dir
-        puts "Copied pyproject.toml to package directory: #{package_dir}/pyproject.toml"
-      else
-        puts "Warning: pyproject.toml not found in current directory"
-      end
-    else
-      puts "Warning: Could not find site-packages directory"
+    package_dir = "#{site_packages}/adbstatus" if site_packages
+    
+    # Copy pyproject.toml to multiple locations to ensure it's found
+    if File.exist?("pyproject.toml") && package_dir && File.directory?(package_dir)
+      cp "pyproject.toml", package_dir
+      cp "pyproject.toml", site_packages if site_packages
+      cp "pyproject.toml", venv
     end
     
-    # Create a modified copy of __init__.py that outputs debug info
-    init_py = Dir["#{site_packages}/adbstatus/__init__.py"].first
-    if init_py && File.exist?(init_py)
-      init_content = File.read(init_py)
-      debug_init = init_content.gsub(/for path in \[/, 
-        "print('Debug: Looking for pyproject.toml in:')\n    for path in [")
-      debug_init = debug_init.gsub(/if path.exists\(\):/, 
-        "print(f'  Checking {path} (exists: {path.exists()})')\n    if path.exists():")
-      File.write(init_py, debug_init)
-      puts "Added debug output to __init__.py"
-    end
+    # Create a debug script
+    (bin/"adbstatus-debug").write <<~EOS
+      #!/bin/bash
+      echo "=== ADBStatus Debug Info ==="
+      echo "Python version: $(#{venv}/bin/python3 --version)"
+      echo
+      
+      echo "=== Package Location ==="
+      #{venv}/bin/python3 -c "import adbstatus; print(f'Package file: {adbstatus.__file__}')"
+      
+      echo
+      echo "=== pyproject.toml Search Paths ==="
+      #{venv}/bin/python3 -c "
+      import os, sys
+      from pathlib import Path
+      import adbstatus
+      
+      pkg_dir = Path(adbstatus.__file__).parent
+      parent_dir = pkg_dir.parent
+      
+      print(f'Package directory: {pkg_dir}')
+      print(f'Parent directory: {parent_dir}')
+      
+      paths = [
+          parent_dir / 'pyproject.toml',
+          pkg_dir / 'pyproject.toml'
+      ]
+      
+      for path in paths:
+          print(f'Checking: {path}')
+          print(f'  Exists: {path.exists()}')
+          if path.exists():
+              print(f'  Content: {path.read_text()[:100]}...')
+      "
+    EOS
+    chmod 0755, bin/"adbstatus-debug"
     
     # Create wrapper scripts
     (bin/"adbstatus").write <<~EOS
@@ -69,22 +81,6 @@ class Adbstatus < Formula
       #!/bin/bash
       exec "#{venv}/bin/python3" -m adbstatus.monitor "$@"
     EOS
-    
-    # Create a debug script
-    (bin/"adbstatus-debug").write <<~EOS
-      #!/bin/bash
-      echo "Debugging ADBStatus installation:"
-      echo "Python version: $(#{venv}/bin/python3 --version)"
-      echo "Package location:"
-      #{venv}/bin/python3 -c "import adbstatus; print(adbstatus.__file__)"
-      echo "pyproject.toml search paths:"
-      #{venv}/bin/python3 -c "import adbstatus, pathlib; print('Parent dir:', pathlib.Path(adbstatus.__file__).parent); print('Parent of parent:', pathlib.Path(adbstatus.__file__).parent.parent)"
-      echo "Files in package directory:"
-      ls -la $(#{venv}/bin/python3 -c "import adbstatus, pathlib; print(pathlib.Path(adbstatus.__file__).parent)")
-      echo "Contents of pyproject.toml (if found):"
-      cat $(#{venv}/bin/python3 -c "import adbstatus, pathlib; print(pathlib.Path(adbstatus.__file__).parent / 'pyproject.toml')") 2>/dev/null || echo "File not found"
-    EOS
-    chmod 0755, bin/"adbstatus-debug"
     
     # Make the scripts executable
     chmod 0755, bin/"adbstatus"
@@ -176,7 +172,7 @@ class Adbstatus < Formula
         #{bin}/adbstatus-server start -f   # Run server in foreground
         #{bin}/adbstatus-monitor start -f  # Run monitor in foreground
         
-      If you're having issues with pyproject.toml, run:
+      To troubleshoot pyproject.toml issues, run:
         #{bin}/adbstatus-debug
         
       Configuration files are located at:
