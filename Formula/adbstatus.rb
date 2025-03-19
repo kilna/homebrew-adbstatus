@@ -82,7 +82,7 @@ class Adbstatus < Formula
     end
   end
 
-  # Define services without the 'name' parameter
+  # Server service
   service do
     run [opt_bin/"adbstatus-server", "start", "-f"]
     working_dir HOMEBREW_PREFIX
@@ -91,6 +91,7 @@ class Adbstatus < Formula
     error_log_path var/"log/adbstatus/server.log"
   end
 
+  # Monitor service
   service do
     run [opt_bin/"adbstatus-monitor", "start", "-f"]
     working_dir HOMEBREW_PREFIX
