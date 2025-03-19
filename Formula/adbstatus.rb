@@ -16,8 +16,39 @@ class Adbstatus < Formula
     system venv/"bin/pip", "install", "psutil", "pyyaml", "tomli"
     system venv/"bin/pip", "install", "-e", "."
     
-    # Link the executables
-    bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
+    # Create wrapper scripts that explicitly set PYTHONPATH
+    # Rather than using symlinks
+    
+    # Remove any existing symlinks
+    rm_f bin/"adbstatus" if File.symlink?(bin/"adbstatus")
+    rm_f bin/"adbstatus-server" if File.symlink?(bin/"adbstatus-server")
+    rm_f bin/"adbstatus-monitor" if File.symlink?(bin/"adbstatus-monitor")
+    
+    # Create wrapper script for adbstatus
+    (bin/"adbstatus").write <<~EOS
+      #!/bin/bash
+      export PYTHONPATH="#{libexec}:$PYTHONPATH"
+      exec "#{libexec}/bin/adbstatus" "$@"
+    EOS
+    
+    # Create wrapper script for adbstatus-server
+    (bin/"adbstatus-server").write <<~EOS
+      #!/bin/bash
+      export PYTHONPATH="#{libexec}:$PYTHONPATH"
+      exec "#{libexec}/bin/adbstatus-server" "$@"
+    EOS
+    
+    # Create wrapper script for adbstatus-monitor
+    (bin/"adbstatus-monitor").write <<~EOS
+      #!/bin/bash
+      export PYTHONPATH="#{libexec}:$PYTHONPATH"
+      exec "#{libexec}/bin/adbstatus-monitor" "$@"
+    EOS
+    
+    # Make the scripts executable
+    chmod 0755, bin/"adbstatus"
+    chmod 0755, bin/"adbstatus-server"
+    chmod 0755, bin/"adbstatus-monitor"
     
     # Set up configuration directories
     (etc/"adbstatus/ssl").mkpath
@@ -72,24 +103,17 @@ class Adbstatus < Formula
     end
   end
 
-  # Server service with PYTHONPATH
+  # Services with simplified options
   service do
     run [opt_bin/"adbstatus-server", "start"]
-    run_type :immediate
     working_dir HOMEBREW_PREFIX
-    environment_variables PATH: std_service_path_env, 
-                          PYTHONPATH: opt_libexec.to_s
     log_path var/"log/adbstatus/server.log"
     error_log_path var/"log/adbstatus/server.log"
   end
 
-  # Monitor service with PYTHONPATH
   service do
     run [opt_bin/"adbstatus-monitor", "start"]
-    run_type :immediate
     working_dir HOMEBREW_PREFIX
-    environment_variables PATH: std_service_path_env, 
-                          PYTHONPATH: opt_libexec.to_s
     log_path var/"log/adbstatus/monitor.log"
     error_log_path var/"log/adbstatus/monitor.log"
   end
@@ -120,5 +144,6 @@ class Adbstatus < Formula
 
   test do
     assert_predicate bin/"adbstatus", :exist?
+    system bin/"adbstatus", "--version"
   end
 end
