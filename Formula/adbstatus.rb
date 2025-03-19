@@ -11,10 +11,17 @@ class Adbstatus < Formula
     # Get Python info
     python = Formula["python@3"].opt_bin/"python3"
     
-    # Check Python version and write it to a debug file
-    debug_log = buildpath/"brew_debug.log"
-    debug_log.write("Starting installation debug log\n")
+    # Create debug directory and log file
+    debug_dir = buildpath/"debug"
+    debug_dir.mkpath
+    debug_log = debug_dir/"install.log"
     
+    # Log basic environment information
+    debug_log.write("=== Environment Information ===\n")
+    system "env", :out => [debug_log, "a"]
+    
+    # Check Python version
+    debug_log.append_lines("\n=== Python Version ===")
     python_version = Utils.safe_popen_read(python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     python_version.chomp!
     debug_log.append_lines("Python version: #{python_version}")
@@ -24,64 +31,137 @@ class Adbstatus < Formula
       odie "Python 3.8 or newer is required but you have #{python_version}"
     end
     
-    # Create a verbose debug installation attempt
-    debug_log.append_lines("\nRepository contents:")
-    system "ls", "-la", ".", :err => [debug_log, "a"], :out => [debug_log, "a"]
+    # Log repository contents
+    debug_log.append_lines("\n=== Repository Contents ===")
+    system "find", ".", "-type", "f", "-not", "-path", "./debug/*", "-ls", :out => [debug_log, "a"]
     
-    if File.exist?("pyproject.toml")
-      debug_log.append_lines("\npyproject.toml contents:")
-      debug_log.append_lines(File.read("pyproject.toml"))
-    end
-    
-    if File.exist?("setup.py")
-      debug_log.append_lines("\nsetup.py contents:")
-      debug_log.append_lines(File.read("setup.py"))
+    # Log key file contents
+    ["pyproject.toml", "setup.py", "setup.cfg"].each do |file|
+      if File.exist?(file)
+        debug_log.append_lines("\n=== #{file} Contents ===")
+        debug_log.append_lines(File.read(file))
+      end
     end
     
     # Set up installation directories
     site_packages = libexec/"lib/python#{python_version}/site-packages"
     ENV.prepend_create_path "PYTHONPATH", site_packages
-    site_packages.mkpath
     
-    debug_log.append_lines("\nAttempting pip installation...")
+    # Try installing with pip in verbose mode with full logging
+    debug_log.append_lines("\n=== Pip Installation Attempt ===")
     
-    # Install tomli for pyproject.toml parsing
-    system python, "-m", "pip", "install", "--target=#{site_packages}", "tomli"
+    # Create a detailed pip debugging script
+    pip_debug_script = debug_dir/"pip_install.py"
+    pip_debug_script.write <<~EOS
+      import os
+      import sys
+      import subprocess
+      import traceback
+      
+      def run_pip():
+          print("Python executable:", sys.executable)
+          print("Python version:", sys.version)
+          print("Current directory:", os.getcwd())
+          
+          try:
+              import pip
+              print("Pip version:", pip.__version__)
+          except ImportError:
+              print("Pip not available as module")
+          
+          # Try pip install with all output captured
+          cmd = [
+              sys.executable, 
+              "-m", 
+              "pip",
+              "install",
+              "--verbose",
+              "--prefix=#{libexec}",
+              "."
+          ]
+          
+          print("Running command:", " ".join(cmd))
+          
+          try:
+              result = subprocess.run(
+                  cmd,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  text=True,
+                  check=False
+              )
+              
+              print("Return code:", result.returncode)
+              print("STDOUT:\\n", result.stdout)
+              print("STDERR:\\n", result.stderr)
+              
+              if result.returncode != 0:
+                  # If that failed, try another approach
+                  print("\\n\\nFirst attempt failed, trying alternate approach...")
+                  alt_cmd = [
+                      sys.executable,
+                      "-m",
+                      "pip",
+                      "install",
+                      "-e",
+                      "."
+                  ]
+                  
+                  print("Running command:", " ".join(alt_cmd))
+                  
+                  alt_result = subprocess.run(
+                      alt_cmd,
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                      text=True,
+                      check=False
+                  )
+                  
+                  print("Return code:", alt_result.returncode)
+                  print("STDOUT:\\n", alt_result.stdout)
+                  print("STDERR:\\n", alt_result.stderr)
+                  
+                  return alt_result.returncode
+              
+              return result.returncode
+          except Exception as e:
+              print("Exception during pip install:")
+              print(traceback.format_exc())
+              return 1
+      
+      if __name__ == "__main__":
+          sys.exit(run_pip())
+    EOS
     
-    # Try a direct installation with more debugging
-    cd buildpath do
-      debug_log.append_lines("\nTrying direct pip installation...")
+    # Run the debug script and capture all output
+    debug_log.append_lines("\n=== Pip Debug Script Output ===")
+    system python, pip_debug_script.to_s, :out => [debug_log, "a"], :err => [debug_log, "a"]
+    
+    # Try direct installation with no bells and whistles
+    debug_log.append_lines("\n=== Direct Installation Attempt ===")
+    system python, "-m", "pip", "install", "--prefix=#{libexec}", ".", :out => [debug_log, "a"], :err => [debug_log, "a"]
+    
+    # At this point, check if installation succeeded
+    if Dir["#{libexec}/bin/*"].empty?
+      debug_log.append_lines("\n=== Installation Failed ===")
+      opoo "Pip installation failed. See #{debug_log} for details."
       
-      # First try with verbose output
-      pip_cmd = "#{python} -m pip install --verbose --no-deps --prefix=#{libexec} ."
-      debug_log.append_lines("Running: #{pip_cmd}")
+      # Copy the debug log to a permanent location
+      log_dir = HOMEBREW_LOGS/"adbstatus"
+      log_dir.mkpath
+      FileUtils.cp debug_log, log_dir/"install_failure.log"
       
-      system pip_cmd, :err => [debug_log, "a"], :out => [debug_log, "a"]
-      
-      unless $?.success?
-        debug_log.append_lines("\nFirst installation attempt failed")
-        
-        # Try installing with minimal dependencies and debug output
-        debug_log.append_lines("\nTrying simpler installation...")
-        system "#{python} -m pip install -v .", :err => [debug_log, "a"], :out => [debug_log, "a"]
-        
-        debug_log.append_lines("\nInstallation failed. Check #{debug_log} for details.")
-        odie "Python package installation failed. See #{debug_log} for details."
-      end
+      odie "Package installation failed. Debug log available at: #{log_dir}/install_failure.log"
     end
     
-    debug_log.append_lines("\nInstallation succeeded, creating bin stubs...")
+    # If we got here, the installation succeeded
+    debug_log.append_lines("\n=== Installation Succeeded ===")
     
-    # Create bin stubs that use the right Python
+    # Create bin stubs with the right shebang
     bin.install Dir["#{libexec}/bin/*"]
     bin.each_child do |f|
       next unless f.file?
-      
-      # Rewrite the shebang line to use the specific Python
       inreplace f, %r{^#!.*python.*$}, "#!#{python}"
-      
-      # Set executable permissions
-      chmod 0755, f
     end
     
     # Create configuration directories
@@ -104,7 +184,9 @@ class Adbstatus < Formula
     system "chmod", "644", "#{etc}/adbstatus/ssl/adbstatus.crt"
     system "chmod", "600", "#{etc}/adbstatus/ssl/adbstatus.key"
     
-    debug_log.append_lines("\nInstallation completed")
+    # Copy debug log to installation for reference
+    (libexec/"debug").mkpath
+    FileUtils.cp debug_log, libexec/"debug/install.log"
   end
 
   # Server service
@@ -127,8 +209,7 @@ class Adbstatus < Formula
   end
 
   test do
-    # Always succeed for now
-    true
+    assert_predicate bin/"adbstatus", :exist?
   end
 end
 
