@@ -10,18 +10,27 @@ class Adbstatus < Formula
   depends_on "sleepwatcher"
 
   def install
-    # Create a virtual environment
+    # Create a virtual environment with pip
     venv = libexec
-    virtualenv_create(venv, "python3")
+    system Formula["python@3"].opt_bin/"python3", "-m", "venv", venv
     
-    # Install dependencies directly with pip without specifying URLs
-    system libexec/"bin/pip", "install", "psutil", "pyyaml", "tomli"
+    # Install pip into the virtualenv if it doesn't exist
+    unless File.exist?("#{venv}/bin/pip")
+      system Formula["python@3"].opt_bin/"python3", "-m", "ensurepip"
+      system Formula["python@3"].opt_bin/"python3", "-m", "pip", "install", "--upgrade", "pip"
+    end
+    
+    # Get the path to pip in the virtual environment
+    venv_pip = "#{venv}/bin/pip"
+    
+    # Install dependencies directly using the virtualenv's pip
+    system venv_pip, "install", "psutil", "pyyaml", "tomli"
     
     # Install the package itself (from the current directory)
-    system libexec/"bin/pip", "install", "-e", "."
+    system venv_pip, "install", "-e", "."
     
     # Create bin stubs
-    bin.install_symlink Dir["#{libexec}/bin/adbstatus*"]
+    bin.install_symlink Dir["#{venv}/bin/adbstatus*"]
     
     # Create configuration directories
     (etc/"adbstatus/ssl").mkpath
